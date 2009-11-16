@@ -48,7 +48,7 @@ func spin(n, k, i, bufsize int) chan int {
 
 // Return a chan of numbers not relative prime to 2, 3, 5 and 7,
 // starting from 13.
-func Candidates() chan int	{ return spin(13, 1, 0, 100) }
+func coprime2357() chan int	{ return spin(13, 1, 0, 100) }
 
 // Map (p % 210) to a corresponding wheel position.
 // A prime number can only be one of these value (mod 210).
@@ -62,7 +62,7 @@ var wheelpos = map[int]int{
 }
 
 // Return a chan of multiples of a prime p that are relative prime
-// to 2, 3, 5 and 7,  starting from (p * p).
+// to 2, 3, 5 and 7, starting from (p * p).
 func Multiples(p int) chan int	{ return spin(p*p, p, wheelpos[p%210], 20) }
 
 // Peekable chan int
@@ -133,7 +133,7 @@ func mergeMultiples(primes chan int) chan int {
 }
 
 // Overestimate prime_pi(n) - prime_pi(sqrt(n)) for all n <= 2^31-1.
-func p(n int) int {
+func est(n int) int {
 	x := float64(n);
 	return int(x/math.Log(x) + math.Pow(x, 0.72505))
 }
@@ -160,7 +160,7 @@ func Sieve(n int) chan int {
 		out <- 11;
 		primes <- 11;
 		composites := mergeMultiples(primes);
-		candidates := Candidates();
+		candidates := coprime2357();
 		p := <-candidates;
 		for {
 			c := <-composites;
@@ -191,7 +191,7 @@ func main() {
 		}
 		fmt.Println(<-primes);
 	} else {
-		primes := Sieve(p(n));
+		primes := Sieve(est(n));
 		for {
 			p := <-primes;
 			if p <= n {
