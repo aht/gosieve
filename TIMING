@@ -1,0 +1,60 @@
+Print all primes <= 100000
+--
+
+$ time ./sieve1 100000 | wc -l
+9592
+
+real    1m33.599s
+user    1m31.124s
+sys     0m0.547s
+
+$ time ./sieve2 100000 | wc -l
+9592
+
+real    0m0.440s
+user    0m0.273s
+sys     0m0.160s
+
+
+Print the 10000th prime
+--
+
+$ time ./sieve1 -n 10000
+104729
+
+real    1m19.188s
+user    1m18.808s
+sys     0m0.087s
+
+$ time ./sieve2 -n 10000
+104729
+
+real    0m0.187s
+user    0m0.160s
+sys     0m0.017s
+
+
+Print the millionth prime
+--
+
+$ time ./sieve2 -n 1000000
+15485863
+
+real    0m21.655s
+user    0m21.249s
+sys     0m0.197s
+
+$ time GOMAXPROCS=2 ./sieve2 -n 1000000
+15485863
+
+real    0m39.086s
+user    0m25.608s
+sys     0m18.492s
+
+$ time ./ONeillPrimesTest 1000000
+(1000000,15485863)
+
+real    0m5.553s
+user    0m5.526s
+sys     0m0.007s
+
