@@ -6,7 +6,7 @@
 
 // References:
 // 	<http://www.cs.hmc.edu/~oneill/papers/Sieve-JFP.pdf>
-//  <http://en.literateprograms.org/Sieve_of_Eratosthenes_(Haskell)>
+// 	<http://en.literateprograms.org/Sieve_of_Eratosthenes_(Haskell)>
 
 // The program will print all primes <= n, where n := flag.Arg(0).
 // If the flag -n is given, it will print the nth prime only.
@@ -147,11 +147,11 @@ func Sieve(n int) chan int {
 	primes := make(chan int, n);
 	// We need non-blocking send to this, or we'll deadlock.
 	// The buffer size must be >= p(n) where
-	//   p(n) = prime_pi(n) - prime_pi(sqrt(n))
-	//   p(10^6) = 78330
-	//   p(prime(1000000)) = 999454
-	//   p(10^9) = 50844133
-	// 	 p(2^31-1) = 105092773
+	// 	p(n) = prime_pi(n) - prime_pi(sqrt(n))
+	// 	p(10^6) = 78330
+	// 	p(prime(1000000)) = 999454
+	// 	p(10^9) = 50844133
+	// 	p(2^31-1) = 105092773
 
 	go func() {
 		out <- 2;
