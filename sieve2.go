@@ -135,7 +135,7 @@ func mergeMultiples(primes chan int) chan int {
 // Overestimate prime_pi(n) - prime_pi(sqrt(n)) for all n <= 2^31-1.
 func p(n int) int {
 	x := float64(n);
-	return int(math.Ceil(x/math.Log(x) + math.Pow(x, 0.72505)));
+	return int(x/math.Log(x) + math.Pow(x, 0.72505))
 }
 
 // Return a chan of primes by sieving out eliminated composites.
