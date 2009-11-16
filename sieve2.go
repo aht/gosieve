@@ -38,7 +38,6 @@ func spin(n, k, i, bufsize int) chan int {
 		for {
 			for ; i < 48; i++ {
 				out <- n;
-				//fmt.Fprintln(os.Stderr, "spinning k=", k, "->", n);
 				n += k * wheel[i];
 			}
 			i = 0;
@@ -51,7 +50,7 @@ func spin(n, k, i, bufsize int) chan int {
 // starting from 13.
 func Candidates() chan int	{ return spin(13, 1, 0, 100) }
 
-// Map (n % 210) to a corresponding wheel position.
+// Map (p % 210) to a corresponding wheel position.
 // A prime number can only be one of these value (mod 210).
 var wheelpos = map[int]int{
 	1: 46, 11: 47, 13: 0, 17: 1, 19: 2, 23: 3, 29: 4, 31: 5, 37: 6, 41: 7,
@@ -127,7 +126,7 @@ func mergeMultiples(primes chan int) chan int {
 				heap.Push(h, &PeekCh{<-peek.ch, peek.ch});
 			}
 			out <- n;
-			h.Push(&PeekCh{<-ch, ch});
+			heap.Push(h, &PeekCh{<-ch, ch});
 		}
 	}();
 	return out;
