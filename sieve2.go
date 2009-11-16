@@ -25,7 +25,7 @@ import (
 
 var nth = flag.Bool("n", false, "print the nth prime only")
 
-// Wheel to quickly generate numbers not relative prime to 2, 3, 5 and 7.
+// Wheel to quickly generate numbers coprime to 2, 3, 5 and 7, starting from 13.
 var wheel = []int{
 	4, 2, 4, 6, 2, 6, 4, 2, 4, 6, 6, 2, 6, 4, 2, 6, 4, 6, 8, 4, 2, 4, 2, 4, 8,
 	6, 4, 6, 2, 4, 6, 2, 6, 6, 4, 2, 4, 6, 2, 6, 4, 2, 4, 2, 10, 2, 10, 2,
@@ -46,8 +46,7 @@ func spin(n, k, i, bufsize int) chan int {
 	return out;
 }
 
-// Return a chan of numbers not relative prime to 2, 3, 5 and 7,
-// starting from 13.
+// Return a chan of numbers coprime to 2, 3, 5 and 7, starting from 13.
 func coprime2357() chan int	{ return spin(13, 1, 0, 100) }
 
 // Map (p % 210) to a corresponding wheel position.
