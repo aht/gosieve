@@ -2,13 +2,13 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Implement the faithful sieve of Eratosthenes.
+// Implements the faithful sieve of Eratosthenes.
 
 // References:
 // 	<http://www.cs.hmc.edu/~oneill/papers/Sieve-JFP.pdf>
 // 	<http://en.literateprograms.org/Sieve_of_Eratosthenes_(Haskell)>
 
-// The program will print all primes <= n, where n := flag.Arg(0).
+// This program will print all primes <= n, where n := flag.Arg(0).
 // If the flag -n is given, it will print the nth prime only.
 
 package main
@@ -25,7 +25,8 @@ import (
 
 var nth = flag.Bool("n", false, "print the nth prime only")
 
-// Wheel to quickly generate numbers coprime to 2, 3, 5 and 7, starting from 13.
+// Wheel to quickly generate numbers coprime to 2, 3, 5 and 7.
+// Starting from 13, we successively add wheel[i] to get 17, 19, 23, ...
 var wheel = []int{
 	4, 2, 4, 6, 2, 6, 4, 2, 4, 6, 6, 2, 6, 4, 2, 6, 4, 6, 8, 4, 2, 4, 2, 4, 8,
 	6, 4, 6, 2, 4, 6, 2, 6, 6, 4, 2, 4, 6, 2, 6, 4, 2, 4, 2, 10, 2, 10, 2,
@@ -47,6 +48,7 @@ func spin(n, k, i, bufsize int) chan int {
 }
 
 // Return a chan of numbers coprime to 2, 3, 5 and 7, starting from 13.
+// coprime2357() -> 13, 17, 23, 25, 31, 35, 37, 41, 47, 53, ...
 func coprime2357() chan int	{ return spin(13, 1, 0, 100) }
 
 // Map (p % 210) to a corresponding wheel position.
@@ -62,7 +64,42 @@ var wheelpos = map[int]int{
 
 // Return a chan of multiples of a prime p that are relative prime
 // to 2, 3, 5 and 7, starting from (p * p).
+// multiples(11) -> 121, 143, 187, 209, 253, 319, 341, 407, 451, 473, ...
+// multiples(13) -> 169, 221, 247, 299, 377, 403, 481, 533, 559, 611, ...
 func multiples(p int) chan int	{ return spin(p*p, p, wheelpos[p%210], 20) }
+
+// Given a channel of known primes, merge all channels of their multiples into
+// a single channel -- the channel of all composites to be eliminated.
+func mergeMultiples(primes chan int) chan int {
+	out := make(chan int, 500);
+	go func() {
+		// Since each channel of primes multiples is sorted, and that the heads of
+		// each channel is p*p and thus come in increasing order.  We use a heap to
+		// maintain a pool of channels of multiples and keep draining the heap until
+		// the minimum is greater than the head of the next channel, in which case we
+		// add that channel into the heap and poll for the next head.
+		h := NewPeekChHeap();
+		min := 143;
+		for {
+			ch := multiples(<-primes);
+			n := <-ch;
+			for min < n {
+				out <- min;
+				mch := heap.Pop(h).(*PeekCh);
+				min = mch.head;
+				heap.Push(h, &PeekCh{<-mch.ch, mch.ch});
+			}
+			for min == n {
+				mch := heap.Pop(h).(*PeekCh);
+				min = mch.head;
+				heap.Push(h, &PeekCh{<-mch.ch, mch.ch});
+			}
+			out <- n;
+			heap.Push(h, &PeekCh{<-ch, ch});
+		}
+	}();
+	return out;
+}
 
 // Peekable chan int
 type PeekCh struct {
@@ -101,54 +138,16 @@ func (h *PeekChHeap) Swap(i, j int) {
 	h.chs.Swap(i, j);
 }
 
-// Merge chans of multiples of each prime into one sorted chan int, knowing
-// that each chan of multiples is sorted, and that the heads of the chans
-// come in increasing order.
-func mergeMultiples(primes chan int) chan int {
-	out := make(chan int, 500);
-	go func() {
-		h := NewPeekChHeap();
-		min := 143;
-		// Add one more PeekCh into the heap for each loop
-		for {
-			ch := multiples(<-primes);
-			n := <-ch;
-			for min < n {
-				out <- min;
-				peek := heap.Pop(h).(*PeekCh);
-				min = peek.head;
-				heap.Push(h, &PeekCh{<-peek.ch, peek.ch});
-			}
-			for min == n {
-				peek := heap.Pop(h).(*PeekCh);
-				min = peek.head;
-				heap.Push(h, &PeekCh{<-peek.ch, peek.ch});
-			}
-			out <- n;
-			heap.Push(h, &PeekCh{<-ch, ch});
-		}
-	}();
-	return out;
-}
-
-// Overestimate p(n) for all n <= 2^31-1, where
-// 	p(n) = (number of primes <= n) - (number of primes <= sqrt(n))
-func EstimateP(n int) int {
-	x := float64(n);
-	return int(x/math.Log(x) + math.Pow(x, 0.72505))
-}
-
-// Return a chan of primes by sieving out eliminated composites.
-// n should be an over-estimate of the number of primes needed to prevent deadlock.
-func Sieve(n int) chan int {
+// Return a chan int of primes.
+// Attempt to receive more than n primes from the returned channel will deadlock.
+func Primes(n int) chan int {
 	out := make(chan int, 100);
 
 	primes := make(chan int, n);
 	// We need non-blocking send to this, or we'll deadlock.
-	// The buffer size must be >= p(n) where
+	// The minimum buffer size must be p(n) where
 	// 	p(n) = (number of primes <= n) - (number of primes <= sqrt(n))
 	// 	p(10^6) = 78330
-	// 	p(prime(1000000)) = 999454
 	// 	p(10^9) = 50844133
 	// 	p(2^31-1) = 105092773
 
@@ -177,6 +176,17 @@ func Sieve(n int) chan int {
 	return out;
 }
 
+// Return a chan int of primes.
+// Attempt to receive primes >= n from the returned channel will deadlock.
+func Sieve(n int) chan int	{ return Primes(estimateP(n)) }
+
+// Overestimate p(n) for all n <= 2^31-1 where
+// p(n) = (number of primes <= n) - (number of primes <= sqrt(n))
+func estimateP(n int) int {
+	x := float64(n);
+	return int(x/math.Log(x) + math.Pow(x, 0.72505));
+}
+
 func main() {
 	flag.Parse();
 	n, err := strconv.Atoi(flag.Arg(0));
@@ -185,13 +195,13 @@ func main() {
 		os.Exit(1);
 	}
 	if *nth {
-		primes := Sieve(n);
+		primes := Primes(n);
 		for i := 1; i < n; i++ {
 			<-primes
 		}
 		fmt.Println(<-primes);
 	} else {
-		primes := Sieve(EstimateP(n));
+		primes := Sieve(n);
 		for {
 			p := <-primes;
 			if p <= n {
