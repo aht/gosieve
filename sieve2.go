@@ -131,7 +131,8 @@ func mergeMultiples(primes chan int) chan int {
 	return out;
 }
 
-// Overestimate prime_pi(n) - prime_pi(sqrt(n)) for all n <= 2^31-1.
+// Overestimate p(n) for all n <= 2^31-1, where
+// 	p(n) = (number of primes <= n) - (number of primes <= sqrt(n))
 func EstimateP(n int) int {
 	x := float64(n);
 	return int(x/math.Log(x) + math.Pow(x, 0.72505))
@@ -145,7 +146,7 @@ func Sieve(n int) chan int {
 	primes := make(chan int, n);
 	// We need non-blocking send to this, or we'll deadlock.
 	// The buffer size must be >= p(n) where
-	// 	p(n) = prime_pi(n) - prime_pi(sqrt(n))
+	// 	p(n) = (number of primes <= n) - (number of primes <= sqrt(n))
 	// 	p(10^6) = 78330
 	// 	p(prime(1000000)) = 999454
 	// 	p(10^9) = 50844133
