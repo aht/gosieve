@@ -20,10 +20,12 @@ import (
 	"fmt";
 	"math";
 	"os";
+	"runtime";
 	"strconv";
 )
 
 var nth = flag.Bool("n", false, "print the nth prime only")
+var nCPU = flag.Int("ncpu", 1, "number of CPUs to use")
 
 // Wheel to quickly generate numbers coprime to 2, 3, 5 and 7.
 // Starting from 13, we successively add wheel[i] to get 17, 19, 23, ...
@@ -194,6 +196,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "bad argument");
 		os.Exit(1);
 	}
+	runtime.GOMAXPROCS(*nCPU);
 	if *nth {
 		primes := Primes(n);
 		for i := 1; i < n; i++ {
