@@ -1,0 +1,7 @@
+----
+Prime numbers sieve implementations using GO CSP channels.
+----
+
+./sieve1.go		Taken from the Go language tutorial, worse than trial division
+./sieve2.go		Implements the faithful sieve of Eratosthenes
+
