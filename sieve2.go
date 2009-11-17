@@ -62,7 +62,7 @@ var wheelpos = map[int]int{
 
 // Return a chan of multiples of a prime p that are relative prime
 // to 2, 3, 5 and 7, starting from (p * p).
-func Multiples(p int) chan int	{ return spin(p*p, p, wheelpos[p%210], 20) }
+func multiples(p int) chan int	{ return spin(p*p, p, wheelpos[p%210], 20) }
 
 // Peekable chan int
 type PeekCh struct {
@@ -111,7 +111,7 @@ func mergeMultiples(primes chan int) chan int {
 		min := 143;
 		// Add one more PeekCh into the heap for each loop
 		for {
-			ch := Multiples(<-primes);
+			ch := multiples(<-primes);
 			n := <-ch;
 			for min < n {
 				out <- min;
@@ -132,7 +132,7 @@ func mergeMultiples(primes chan int) chan int {
 }
 
 // Overestimate prime_pi(n) - prime_pi(sqrt(n)) for all n <= 2^31-1.
-func est(n int) int {
+func EstimateP(n int) int {
 	x := float64(n);
 	return int(x/math.Log(x) + math.Pow(x, 0.72505))
 }
@@ -190,7 +190,7 @@ func main() {
 		}
 		fmt.Println(<-primes);
 	} else {
-		primes := Sieve(est(n));
+		primes := Sieve(EstimateP(n));
 		for {
 			p := <-primes;
 			if p <= n {
