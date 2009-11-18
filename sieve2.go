@@ -83,21 +83,21 @@ func mergeMultiples(primes chan int) chan int {
 		h := NewPeekChHeap();
 		min := 143;
 		for {
-			ch := multiples(<-primes);
-			n := <-ch;
-			for min < n {
+			m := multiples(<-primes);
+			head := <-m;
+			for min < head {
 				out <- min;
-				mch := heap.Pop(h).(*PeekCh);
-				min = mch.head;
-				heap.Push(h, &PeekCh{<-mch.ch, mch.ch});
+				minchan := heap.Pop(h).(*PeekCh);
+				min = minchan.head;
+				heap.Push(h, &PeekCh{<-minchan.ch, minchan.ch});
 			}
-			for min == n {
-				mch := heap.Pop(h).(*PeekCh);
-				min = mch.head;
-				heap.Push(h, &PeekCh{<-mch.ch, mch.ch});
+			for min == head {
+				minchan := heap.Pop(h).(*PeekCh);
+				min = minchan.head;
+				heap.Push(h, &PeekCh{<-minchan.ch, minchan.ch});
 			}
-			out <- n;
-			heap.Push(h, &PeekCh{<-ch, ch});
+			out <- head;
+			heap.Push(h, &PeekCh{<-m, m});
 		}
 	}();
 	return out;
