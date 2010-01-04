@@ -14,14 +14,14 @@
 package main
 
 import (
-	"container/heap";
-	"container/vector";
-	"flag";
-	"fmt";
-	"math";
-	"os";
-	"runtime";
-	"strconv";
+	"container/heap"
+	"container/vector"
+	"flag"
+	"fmt"
+	"math"
+	"os"
+	"runtime"
+	"strconv"
 )
 
 var nth = flag.Bool("n", false, "print the nth prime only")
@@ -36,22 +36,22 @@ var wheel = []int{
 
 // Return a chan int of values (n + k * wheel[i]) for successive i.
 func spin(n, k, i, bufsize int) chan int {
-	out := make(chan int, bufsize);
+	out := make(chan int, bufsize)
 	go func() {
 		for {
 			for ; i < 48; i++ {
-				out <- n;
-				n += k * wheel[i];
+				out <- n
+				n += k * wheel[i]
 			}
-			i = 0;
+			i = 0
 		}
-	}();
-	return out;
+	}()
+	return out
 }
 
 // Return a chan of numbers coprime to 2, 3, 5 and 7, starting from 13.
 // coprime2357() -> 13, 17, 23, 25, 31, 35, 37, 41, 47, 53, ...
-func coprime2357() chan int	{ return spin(13, 1, 0, 100) }
+func coprime2357() chan int { return spin(13, 1, 0, 100) }
 
 // Map (p % 210) to a corresponding wheel position.
 // A prime number can only be one of these value (mod 210).
@@ -68,145 +68,151 @@ var wheelpos = map[int]int{
 // to 2, 3, 5 and 7, starting from (p * p).
 // multiples(11) -> 121, 143, 187, 209, 253, 319, 341, 407, 451, 473, ...
 // multiples(13) -> 169, 221, 247, 299, 377, 403, 481, 533, 559, 611, ...
-func multiples(p int) chan int	{ return spin(p*p, p, wheelpos[p%210], 20) }
+func multiples(p int) chan int { return spin(p*p, p, wheelpos[p%210], 20) }
 
 // Given a channel of known primes, merge all channels of their multiples into
 // a single channel -- the channel of all composites to be eliminated.
 func mergeMultiples(primes chan int) chan int {
-	out := make(chan int, 500);
+	out := make(chan int, 500)
 	go func() {
-		// Since each channel of primes multiples is sorted, and that the heads of
-		// each channel is p*p and thus come in increasing order.  We use a heap to
-		// maintain a pool of channels of multiples and keep draining the heap until
-		// the minimum is greater than the head of the next channel, in which case we
-		// add that channel into the heap and poll for the next head.
-		h := NewPeekChHeap();
-		min := 143;
+		// Since each channel of primes multiples is sorted, and since the starting
+		// head of each channel is p*p, they come in increasing order.  We use a
+		// heap to maintain a pool of channels of multiples and keep draining the
+		// heap until the minimum is greater than the head of the next channel, in
+		// which case we add that channel into the heap and poll for the next head.
+		h := NewPeekChHeap()
+		min := 143
 		for {
-			m := multiples(<-primes);
-			head := <-m;
+			m := multiples(<-primes)
+			head := <-m
 			for min < head {
-				out <- min;
-				minchan := heap.Pop(h).(*PeekCh);
-				min = minchan.head;
-				heap.Push(h, &PeekCh{<-minchan.ch, minchan.ch});
+				out <- min
+				minchan := heap.Pop(h).(*PeekCh)
+				min = minchan.head
+				heap.Push(h, &PeekCh{<-minchan.ch, minchan.ch})
 			}
 			for min == head {
-				minchan := heap.Pop(h).(*PeekCh);
-				min = minchan.head;
-				heap.Push(h, &PeekCh{<-minchan.ch, minchan.ch});
+				minchan := heap.Pop(h).(*PeekCh)
+				min = minchan.head
+				heap.Push(h, &PeekCh{<-minchan.ch, minchan.ch})
 			}
-			out <- head;
-			heap.Push(h, &PeekCh{<-m, m});
+			out <- head
+			heap.Push(h, &PeekCh{<-m, m})
 		}
-	}();
-	return out;
+	}()
+	return out
 }
 
 // Peekable chan int
 type PeekCh struct {
-	head	int;
-	ch	chan int;
+	head int
+	ch   chan int
 }
 
 // Heap of PeekCh, sorting by heads
 type PeekChHeap struct {
-	heads	*vector.IntVector;
-	chs	*vector.Vector;
+	heads *vector.IntVector
+	chs   *vector.Vector
 }
 
 func NewPeekChHeap() *PeekChHeap {
-	h := new(PeekChHeap);
-	h.heads = vector.NewIntVector(0);
-	h.chs = vector.New(0);
-	return h;
+	h := new(PeekChHeap)
+	h.heads = new(vector.IntVector)
+	h.chs = new(vector.Vector)
+	return h
 }
 
 func (h *PeekChHeap) Push(x interface{}) {
-	h.heads.Push(x.(*PeekCh).head);
-	h.chs.Push(x.(*PeekCh).ch);
+	h.heads.Push(x.(*PeekCh).head)
+	h.chs.Push(x.(*PeekCh).ch)
 }
 
 func (h *PeekChHeap) Pop() interface{} {
 	return &PeekCh{h.heads.Pop(), h.chs.Pop().(chan int)}
 }
 
-func (h *PeekChHeap) Len() int	{ return h.heads.Len() }
+func (h *PeekChHeap) Len() int { return h.heads.Len() }
 
-func (h *PeekChHeap) Less(i, j int) bool	{ return h.heads.Less(i, j) }
+func (h *PeekChHeap) Less(i, j int) bool { return h.heads.Less(i, j) }
 
 func (h *PeekChHeap) Swap(i, j int) {
-	h.heads.Swap(i, j);
-	h.chs.Swap(i, j);
+	h.heads.Swap(i, j)
+	h.chs.Swap(i, j)
 }
 
 // Return a chan int of primes.
 // Attempt to receive more than n primes from the returned channel will deadlock.
 func Primes(n int) chan int {
-	out := make(chan int, 100);
+	out := make(chan int, 100)
 
-	primes := make(chan int, n);
-	// We need non-blocking send to this, or we'll deadlock.
-	// The minimum buffer size must be p(n) where
-	// 	p(n) = (number of primes <= n) - (number of primes <= sqrt(n))
-	// 	p(10^6) = 78330
-	// 	p(10^9) = 50844133
-	// 	p(2^31-1) = 105092773
+	primes := make(chan int, n)
+	// We need non-blocking send to this or we'll deadlock, since in order to
+	// generate the nth prime we only need multiples of primes <= sqrt(nth prime).
+	// Thus mergeMultiples() will receive from this channel much slower than
+	// Primes() are sending to it.  Buffer size of n is generous, since the
+	// exact size needed is:
+	//     p(n) = n - (number of primes <= sqrt(nth prime))
+	// Regarding Go the language, having an always writable channel (infinite
+	// buffer) would be nice here.
 
 	go func() {
-		out <- 2;
-		out <- 3;
-		out <- 5;
-		out <- 7;
-		out <- 11;
-		primes <- 11;
-		composites := mergeMultiples(primes);
-		candidates := coprime2357();
-		p := <-candidates;
+		out <- 2
+		out <- 3
+		out <- 5
+		out <- 7
+		out <- 11
+		primes <- 11
+		composites := mergeMultiples(primes)
+		candidates := coprime2357()
+		p := <-candidates
 		for {
-			c := <-composites;
+			c := <-composites
 			for p < c {
-				primes <- p;
-				out <- p;
-				p = <-candidates;
+				primes <- p
+				out <- p
+				p = <-candidates
 			}
 			if p == c {
 				p = <-candidates
 			}
 		}
-	}();
-	return out;
+	}()
+	return out
 }
 
 // Return a chan int of primes.
 // Attempt to receive primes >= n from the returned channel will deadlock.
-func Sieve(n int) chan int	{ return Primes(estimateP(n)) }
+func Sieve(n int) chan int { return Primes(estimateP(n)) }
 
 // Overestimate p(n) for all n <= 2^31-1 where
-// p(n) = (number of primes <= n) - (number of primes <= sqrt(n))
+//     p(n) = (number of primes <= n) - (number of primes <= sqrt(n))
+// Exact values of p(n) are:
+//     p(10^6) = 78330
+//     p(10^9) = 50844133
+//     p(2^31-1) = 105092773
 func estimateP(n int) int {
-	x := float64(n);
-	return int(x/math.Log(x) + math.Pow(x, 0.72505));
+	x := float64(n)
+	return int(x/math.Log(x) + math.Pow(x, 0.72505))
 }
 
 func main() {
-	flag.Parse();
-	n, err := strconv.Atoi(flag.Arg(0));
+	flag.Parse()
+	n, err := strconv.Atoi(flag.Arg(0))
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "bad argument");
-		os.Exit(1);
+		fmt.Fprintln(os.Stderr, "bad argument")
+		os.Exit(1)
 	}
-	runtime.GOMAXPROCS(*nCPU);
+	runtime.GOMAXPROCS(*nCPU)
 	if *nth {
-		primes := Primes(n);
+		primes := Primes(n)
 		for i := 1; i < n; i++ {
 			<-primes
 		}
-		fmt.Println(<-primes);
+		fmt.Println(<-primes)
 	} else {
-		primes := Sieve(n);
+		primes := Sieve(n)
 		for {
-			p := <-primes;
+			p := <-primes
 			if p <= n {
 				fmt.Println(p)
 			} else {
