@@ -50,7 +50,7 @@ func spin(n, k, i, bufsize int) chan int {
 }
 
 // Return a chan of numbers coprime to 2, 3, 5 and 7, starting from 13.
-// coprime2357() -> 13, 17, 23, 25, 31, 35, 37, 41, 47, 53, ...
+// coprime2357() -> 13, 17, 19, 23, 25, 31, 35, 37, 41, 47, ...
 func coprime2357() chan int { return spin(13, 1, 0, 100) }
 
 // Map (p % 210) to a corresponding wheel position.
@@ -143,19 +143,22 @@ func (h *PeekChHeap) Swap(i, j int) {
 }
 
 // Return a chan int of primes.
-// Attempt to receive more than n primes from the returned channel will deadlock.
+// Attempt to receive more than n primes from the returned channel will soon deadlock.
 func Primes(n int) chan int {
 	out := make(chan int, 100)
 
 	primes := make(chan int, n)
 	// We need non-blocking send to this or we'll deadlock, since in order to
-	// generate the nth prime we only need multiples of primes <= sqrt(nth prime).
+	// generate the nth prime we only need multiples of primes <= sqrt(prime(n)).
 	// Thus mergeMultiples() will receive from this channel much slower than
-	// Primes() are sending to it.  Buffer size of n is generous, since the
-	// exact size needed is:
-	//     p(n) = n - (number of primes <= sqrt(nth prime))
-	// Regarding Go the language, having an always writable channel (infinite
-	// buffer) would be nice here.
+	// Primes() are sending to it, making the buffer grows.
+	//
+	// Buffer size of n is generous, since the exact size needed is:
+	//     p(n) = n - prime_pi(sqrt(prime(n)))
+	// Some exact values of p(n):
+	//     p(10^6) = 78330
+	//     p(10^9) = 50844133
+	//     p(2^31-1) = 105092773
 
 	go func() {
 		out <- 2
@@ -183,16 +186,12 @@ func Primes(n int) chan int {
 }
 
 // Return a chan int of primes.
-// Attempt to receive primes >= n from the returned channel will deadlock.
-func Sieve(n int) chan int { return Primes(estimateP(n)) }
+// Attempt to receive primes >= n from the returned channel will soon deadlock.
+func Sieve(n int) chan int { return Primes(prime_pi(n)) }
 
-// Overestimate p(n) for all n <= 2^31-1 where
-//     p(n) = (number of primes <= n) - (number of primes <= sqrt(n))
-// Exact values of p(n) are:
-//     p(10^6) = 78330
-//     p(10^9) = 50844133
-//     p(2^31-1) = 105092773
-func estimateP(n int) int {
+// Overestimate the number of primes <= n for all n <= 2^31-1
+// using the Prime Number Theorem.
+func prime_pi(n int) int {
 	x := float64(n)
 	return int(x/math.Log(x) + math.Pow(x, 0.72505))
 }
