@@ -89,12 +89,14 @@ func mergeMultiples(primes chan int) chan int {
 				out <- min
 				minchan := heap.Pop(h).(*PeekCh)
 				min = minchan.head
-				heap.Push(h, &PeekCh{<-minchan.ch, minchan.ch})
+				minchan.head = <-minchan.ch
+				heap.Push(h, minchan)
 			}
 			for min == head {
 				minchan := heap.Pop(h).(*PeekCh)
 				min = minchan.head
-				heap.Push(h, &PeekCh{<-minchan.ch, minchan.ch})
+				minchan.head = <-minchan.ch
+				heap.Push(h, minchan)
 			}
 			out <- head
 			heap.Push(h, &PeekCh{<-m, m})
