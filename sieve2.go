@@ -150,16 +150,9 @@ func Primes(n int) chan int {
 
 	primes := make(chan int, n)
 	// We need non-blocking send to this or we'll deadlock, since in order to
-	// generate the nth prime we only need multiples of primes <= sqrt(prime(n)).
-	// Thus mergeMultiples() will receive from this channel much slower than
+	// generate the nth prime we only need multiples of primes ≤ sqrt(prime(n)).
+	// Thus, mergeMultiples() will receive from this channel much slower than
 	// Primes() are sending to it, making the buffer grows.
-	//
-	// Buffer size of n is generous, since the exact size needed is:
-	//     p(n) = n - prime_pi(sqrt(prime(n)))
-	// Some exact values of p(n):
-	//     p(10^6) = 78330
-	//     p(10^9) = 50844133
-	//     p(2^31-1) = 105092773
 
 	go func() {
 		out <- 2
@@ -187,10 +180,10 @@ func Primes(n int) chan int {
 }
 
 // Return a chan int of primes.
-// Attempt to receive primes >= n from the returned channel will soon deadlock.
+// Attempt to receive primes ≥ n from the returned channel will soon deadlock.
 func Sieve(n int) chan int { return Primes(primePi(n)) }
 
-// Overestimate the number of primes <= n for all n <= 2^31-1
+// Overestimate the number of primes ≤ n for all n ≤ 2^31-1
 // using the Prime Number Theorem.
 func primePi(n int) int {
 	x := float64(n)
