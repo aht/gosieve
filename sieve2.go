@@ -150,7 +150,7 @@ func Primes(n int) chan int {
 
 	primes := make(chan int, n)
 	// We need non-blocking send to this or we'll deadlock, since in order to
-	// generate the nth prime we only need multiples of primes ≤ sqrt(prime(n)).
+	// generate the nth prime we only need multiples of primes ≤ sqrt(nth prime).
 	// Thus, mergeMultiples() will receive from this channel much slower than
 	// Primes() are sending to it, making the buffer grows.
 
