@@ -51,7 +51,7 @@ func spin(n, k, i, bufsize int) chan int {
 
 // Return a chan of numbers coprime to 2, 3, 5 and 7, starting from 13.
 // coprime2357() -> 13, 17, 19, 23, 25, 31, 35, 37, 41, 47, ...
-func coprime2357() chan int { return spin(13, 1, 0, 100) }
+func coprime2357() chan int { return spin(13, 1, 0, 750) }
 
 // Map (p % 210) to a corresponding wheel position.
 // A prime number can only be one of these value (mod 210).
@@ -68,7 +68,7 @@ var wheelpos = map[int]int{
 // to 2, 3, 5 and 7, starting from (p * p).
 // multiples(11) -> 121, 143, 187, 209, 253, 319, 341, 407, 451, 473, ...
 // multiples(13) -> 169, 221, 247, 299, 377, 403, 481, 533, 559, 611, ...
-func multiples(p int) chan int { return spin(p*p, p, wheelpos[p%210], 20) }
+func multiples(p int) chan int { return spin(p*p, p, wheelpos[p%210], 50) }
 
 // Given a channel of known primes, merge all channels of their multiples into
 // a single channel -- the channel of all composites to be eliminated.
