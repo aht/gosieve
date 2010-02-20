@@ -3,10 +3,7 @@
 // license that can be found in the LICENSE file.
 
 // Implements the faithful sieve of Eratosthenes.
-
-// References:
-// 	<http://www.cs.hmc.edu/~oneill/papers/Sieve-JFP.pdf>
-// 	<http://en.literateprograms.org/Sieve_of_Eratosthenes_(Haskell)>
+// Discussion: <http://blog.onideas.ws/eratosthenes.go>
 
 // This program will print all primes <= n, where n := flag.Arg(0).
 // If the flag -n is given, it will print the nth prime only.
@@ -18,7 +15,6 @@ import (
 	"container/vector"
 	"flag"
 	"fmt"
-	"math"
 	"os"
 	"runtime"
 	"strconv"
@@ -70,24 +66,112 @@ var wheelpos = map[int]int{
 // multiples(13) -> 169, 221, 247, 299, 377, 403, 481, 533, 559, 611, ...
 func multiples(p int) chan int { return spin(p*p, p, wheelpos[p%210], 50) }
 
-// Peekable chan int
 type PeekCh struct {
 	head int
 	ch   chan int
 }
 
-// Heap of PeekCh, sorting by heads
+// Heap of PeekCh, sorting by head values.
+// We could use a simple Vector, but the heap does lots of comparisons
+// and using a IntVector for the head values is a bit faster.
 type PeekChHeap struct {
-	*vector.Vector
+	heads *vector.IntVector
+	chs   *vector.Vector
 }
 
-func (h *PeekChHeap) Less(i, j int) bool {
-	return h.At(i).(*PeekCh).head < h.At(j).(*PeekCh).head
+func NewPeekChHeap() *PeekChHeap {
+	h := new(PeekChHeap)
+	h.heads = new(vector.IntVector)
+	h.chs = new(vector.Vector)
+	return h
+}
+
+func (h *PeekChHeap) Push(x interface{}) {
+	h.heads.Push(x.(*PeekCh).head)
+	h.chs.Push(x.(*PeekCh).ch)
+}
+
+func (h *PeekChHeap) Pop() interface{} {
+	return &PeekCh{h.heads.Pop(), h.chs.Pop().(chan int)}
+}
+
+func (h *PeekChHeap) Len() int { return h.heads.Len() }
+
+func (h *PeekChHeap) Less(i, j int) bool { return h.heads.Less(i, j) }
+
+func (h *PeekChHeap) Swap(i, j int) {
+	h.heads.Swap(i, j)
+	h.chs.Swap(i, j)
+}
+
+// Use a goroutine to receive values from `out` and store them
+// in an auto-expanding buffer, so that sending to `out` never blocks.
+// Return a channel which serves as a sending proxy to to `out`.
+// See this discussion:
+// <http://rogpeppe.wordpress.com/2010/02/10/unlimited-buffering-with-low-overhead>
+func sendproxy(out chan<- int) chan<- int {
+	in := make(chan int, 100)
+	go func() {
+		var buf = make([]int, 1000)
+		var i, n int
+		var c chan<- int
+		var ok bool
+		for {
+			select {
+			case e := <-in:
+				for added := 0; added < 1000; added++ {
+					if closed(in) {
+						in = nil
+						if n == 0 {
+							close(out)
+							return
+						}
+						break
+					}
+					buf[(i+n) % len(buf)] = e
+					n++
+					if n == len(buf) {
+						// buffer full: expand it
+						b := make([]int, n*2)
+						copy(b, buf[i:])
+						copy(b[n-i:], buf[0:i])
+						i = 0
+						buf = b
+					}
+					if e, ok = <-in; !ok {
+						break
+					}
+				}
+				c = out
+			case c <- buf[i]:
+				for {
+					if i++; i == len(buf) {
+						i = 0
+					}
+					n--
+					if n == 0 {
+						// buffer empty: don't try to send on output
+						if in == nil {
+							close(out)
+							return
+						}
+						c = nil
+						break
+					}
+					if ok = c <- buf[i]; !ok {
+						break
+					}
+				}
+			}
+		}
+	}()
+	return in
 }
 
 // Return a chan int of primes.
 // Attempt to receive more than n primes from the returned channel will soon deadlock.
-func Primes(n int) chan int {
+func Sieve() chan int {
+	// The output values.
 	out := make(chan int, 100)
 	out <- 2
 	out <- 3
@@ -95,20 +179,16 @@ func Primes(n int) chan int {
 	out <- 7
 	out <- 11
 
-	primes := make(chan int, n)
-	// We need non-blocking send to this or we'll deadlock, since in order to
-	// generate the nth prime we only need multiples of primes ≤ sqrt(nth prime).
-	// Thus, the merging goroutine will receive from this channel much slower than
-	// the sieving goroutine will send to it, making the buffer grows.
-
-	primes <- 11
-
+	// The channel of all composites to be eliminated in increasing order.
 	composites := make(chan int, 500)
-	// A channel of all composites to be eliminated in increasing order.
+
+	// The feedback loop.
+	primes := make(chan int, 100)
+	primes <- 11
 
 	// Merge channels of multiples of `primes` into `composites`.
 	go func() {
-		h := &PeekChHeap{new(vector.Vector)}
+		h := NewPeekChHeap()
 		min := 143
 		for {
 			m := multiples(<-primes)
@@ -133,6 +213,13 @@ func Primes(n int) chan int {
 
 	// Sieve out `composites` from `candidates`.
 	go func() {
+		primes := sendproxy(primes)
+		// In order to generate the nth prime we only need multiples of
+		// primes ≤ sqrt(nth prime).  Thus, the merging goroutine will
+		// receive from this channel much slower than this goroutine
+		// will send to it, making the buffer accumulates and blocks this
+		// goroutine from sending to `primes`, causing a deadlock.  The
+		// solution is to use a proxy goroutine to do automatic buffering.
 		candidates := coprime2357()
 		p := <-candidates
 		for {
@@ -151,17 +238,6 @@ func Primes(n int) chan int {
 	return out
 }
 
-// Return a chan int of primes.
-// Attempt to receive primes ≥ n from the returned channel will soon deadlock.
-func Sieve(n int) chan int { return Primes(primePi(n)) }
-
-// Overestimate the number of primes ≤ n for all n ≤ 2^31-1
-// using the Prime Number Theorem.
-func primePi(n int) int {
-	x := float64(n)
-	return int(x/math.Log(x) + math.Pow(x, 0.72505))
-}
-
 func main() {
 	flag.Parse()
 	n, err := strconv.Atoi(flag.Arg(0))
@@ -170,14 +246,13 @@ func main() {
 		os.Exit(1)
 	}
 	runtime.GOMAXPROCS(*nCPU)
+	primes := Sieve()
 	if *nth {
-		primes := Primes(n)
 		for i := 1; i < n; i++ {
 			<-primes
 		}
 		fmt.Println(<-primes)
 	} else {
-		primes := Sieve(n)
 		for {
 			p := <-primes
 			if p <= n {
