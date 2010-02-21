@@ -104,9 +104,9 @@ func (h *PeekChHeap) Swap(i, j int) {
 	h.chs.Swap(i, j)
 }
 
+// Return a channel which serves as a sending proxy to `out`.
 // Use a goroutine to receive values from `out` and store them
 // in an auto-expanding buffer, so that sending to `out` never blocks.
-// Return a channel which serves as a sending proxy to to `out`.
 // See this discussion:
 // <http://rogpeppe.wordpress.com/2010/02/10/unlimited-buffering-with-low-overhead>
 func sendproxy(out chan<- int) chan<- int {
