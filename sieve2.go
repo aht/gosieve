@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Implements the faithful sieve of Eratosthenes.
+// An efficient Eratosthenesque prime sieve using channels.
 // Discussion: <http://blog.onideas.ws/eratosthenes.go>
 
 // This program will print all primes <= n, where n := flag.Arg(0).
@@ -169,7 +169,6 @@ func sendproxy(out chan<- int) chan<- int {
 }
 
 // Return a chan int of primes.
-// Attempt to receive more than n primes from the returned channel will soon deadlock.
 func Sieve() chan int {
 	// The output values.
 	out := make(chan int, 100)
