@@ -11,9 +11,16 @@ sys     0m0.547s
 $ time ./sieve2 100000 | wc -l
 9592
 
-real    0m0.436s
-user    0m0.253s
-sys     0m0.220s
+real    0m0.601s
+user    0m0.463s
+sys     0m0.113s
+
+$ time ./sieve3 100000 | wc -l
+9592
+
+real    0m0.251s
+user    0m0.167s
+sys     0m0.097s
 
 
 Print the millionth prime
@@ -22,11 +29,18 @@ Print the millionth prime
 $ time ./sieve2 -n 1000000
 15485863
 
-real    0m12.852s
-user    0m12.629s
-sys     0m0.203s
+real    0m45.854s
+user    0m45.460s
+sys     0m0.123s
 
-$ time ./sieve2 -ncpu 2 -n 1000000
+$ time ./sieve3 -n 1000000
+15485863
+
+real    0m10.953s
+user    0m10.859s
+sys     0m0.050s
+
+$ time ./sieve3 -ncpu 2 -n 1000000
 15485863
 
 real    0m16.763s
@@ -41,47 +55,15 @@ user    0m5.526s
 sys     0m0.007s
 
 
-Print the two-millionth prime
---
-
-$ time ./sieve2 -n 2000000
-32452843
-
-real    0m28.556s
-user    0m28.082s
-sys     0m0.320s
-
-time ./sieve2 -ncpu 2 -n 2000000
-32452843
-
-real    0m38.133s
-user    0m39.211s
-sys     0m19.669s
-
-$ time ./ONeillPrimesTest 2000000
-(2000000,32452843)
-
-real    0m13.044s
-user    0m12.862s
-sys     0m0.047s
-
-
 Print the ten-millionth prime
 --
 
-$ time ./sieve2 -n 10000000
+$ time ./sieve3 -n 10000000
 179424673
 
-real    2m58.758s
-user    2m56.119s
-sys     0m1.630s
-
-$ time ./sieve2 -ncpu 2 -n 10000000
-179424673
-
-real    4m31.360s
-user    4m33.242s
-sys     2m14.585s
+real    2m41.634s
+user    2m39.920s
+sys     0m0.470s
 
 $ time ./ONeillPrimesTest 10000000
 (10000000,179424673)
