@@ -10,4 +10,4 @@ Prime numbers sieve implementations using CSP channels in Go.
 		   implementations of `PeekChHeap` and `sendproxy`, the result is
 		   about 4x faster than ./sieve2.go
 
-I wrote about it here: <http://blog.onideas.ws/eratosthenes.go>.
+I wrote about it here: http://blog.onideas.ws/eratosthenes.go
