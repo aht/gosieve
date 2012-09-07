@@ -12,8 +12,8 @@
 package main
 
 import (
+	"container/ring"
 	"container/heap"
-	"container/vector"
 	"flag"
 	"fmt"
 	"os"
@@ -48,7 +48,7 @@ func spin(n, k, i, bufsize int) chan int {
 
 // Return a chan of numbers coprime to 2, 3, 5 and 7, starting from 13.
 // coprime2357() -> 13, 17, 19, 23, 25, 31, 35, 37, 41, 47, ...
-func coprime2357() chan int { return spin(13, 1, 0, 500) }
+func coprime2357() chan int { return spin(13, 1, 0, 1024) }
 
 // Map (p % 210) to a corresponding wheel position.
 // A prime number can only be one of these value (mod 210).
@@ -65,7 +65,7 @@ var wheelpos = map[int]int{
 // to 2, 3, 5 and 7, starting from (p * p).
 // multiples(11) -> 121, 143, 187, 209, 253, 319, 341, 407, 451, 473, ...
 // multiples(13) -> 169, 221, 247, 299, 377, 403, 481, 533, 559, 611, ...
-func multiples(p int) chan int { return spin(p*p, p, wheelpos[p%210], 50) }
+func multiples(p int) chan int { return spin(p*p, p, wheelpos[p%210], 1024) }
 
 type PeekCh struct {
 	head int
@@ -73,34 +73,27 @@ type PeekCh struct {
 }
 
 // Heap of PeekCh, sorting by head values.
-type PeekChHeap struct {
-	heads *vector.IntVector
-	chs   *vector.Vector
+type PeekChHeap []*PeekCh
+
+func (h PeekChHeap) Len() int {
+	return len(h)
 }
 
-func NewPeekChHeap() *PeekChHeap {
-	h := new(PeekChHeap)
-	h.heads = new(vector.IntVector)
-	h.chs = new(vector.Vector)
-	return h
+func (h PeekChHeap) Less(i, j int) bool {
+	return h[i].head < h[j].head
 }
 
-func (h *PeekChHeap) Push(x interface{}) {
-	h.heads.Push(x.(*PeekCh).head)
-	h.chs.Push(x.(*PeekCh).ch)
+func (h PeekChHeap) Swap(i, j int) {
+	h[i], h[j] = h[j], h[i]
 }
 
-func (h *PeekChHeap) Pop() interface{} {
-	return &PeekCh{h.heads.Pop(), h.chs.Pop().(chan int)}
+func (h *PeekChHeap) Pop() (v interface{}) {
+	*h, v = (*h)[:h.Len()-1], (*h)[h.Len()-1]
+	return
 }
 
-func (h *PeekChHeap) Len() int { return h.heads.Len() }
-
-func (h *PeekChHeap) Less(i, j int) bool { return h.heads.Less(i, j) }
-
-func (h *PeekChHeap) Swap(i, j int) {
-	h.heads.Swap(i, j)
-	h.chs.Swap(i, j)
+func (h *PeekChHeap) Push(v interface{}) {
+	*h = append(*h, v.(*PeekCh))
 }
 
 // Return a channel which serves as a sending proxy to `out`.
@@ -109,68 +102,43 @@ func (h *PeekChHeap) Swap(i, j int) {
 // See this discussion:
 // <http://rogpeppe.wordpress.com/2010/02/10/unlimited-buffering-with-low-overhead>
 func sendproxy(out chan<- int) chan<- int {
-	in := make(chan int, 100)
+	proxy := make(chan int, 1024)
 	go func() {
-		var buf = make([]int, 128)
-		var i, n int
+		n := 1024 // the allocated size of the circular queue
+		first := ring.New(n)
+		last := first
 		var c chan<- int
-		var ok bool
+		var e int
 		for {
+			c = out
+			if first == last {
+				// buffer empty: disable output
+				c = nil
+			} else {
+				e = first.Value.(int)
+			}
 			select {
-			case e := <-in:
-				for added := 0; added < 1000; added++ {
-					if closed(in) {
-						in = nil
-						if n == 0 {
-							close(out)
-							return
-						}
-						break
-					}
-					buf[(i+n) % len(buf)] = e
-					n++
-					if n == len(buf) {
-						// buffer full: expand it
-						b := make([]int, n*2)
-						copy(b, buf[i:])
-						copy(b[n-i:], buf[0:i])
-						i = 0
-						buf = b
-					}
-					if e, ok = <-in; !ok {
-						break
-					}
+			case e = <-proxy:
+				last.Value = e
+				if last.Next() == first {
+					// buffer full: expand it
+					last.Link(ring.New(n))
+					n *= 2
 				}
-				c = out
-			case c <- buf[i]:
-				for {
-					if i++; i == len(buf) {
-						i = 0
-					}
-					n--
-					if n == 0 {
-						// buffer empty: don't try to send on output
-						if in == nil {
-							close(out)
-							return
-						}
-						c = nil
-						break
-					}
-					if ok = c <- buf[i]; !ok {
-						break
-					}
-				}
+				last = last.Next()
+			case c <- e:
+				first = first.Next()
 			}
 		}
 	}()
-	return in
+	return proxy
 }
+
 
 // Return a chan int of primes.
 func Sieve() chan int {
 	// The output values.
-	out := make(chan int, 100)
+	out := make(chan int, 1024)
 	out <- 2
 	out <- 3
 	out <- 5
@@ -178,34 +146,34 @@ func Sieve() chan int {
 	out <- 11
 
 	// The channel of all composites to be eliminated in increasing order.
-	composites := make(chan int, 500)
+	composites := make(chan int, 8046)
 
 	// The feedback loop.
-	primes := make(chan int, 100)
+	primes := make(chan int, 1024)
 	primes <- 11
 
 	// Merge channels of multiples of `primes` into `composites`.
 	go func() {
-		h := NewPeekChHeap()
+		h := make(PeekChHeap, 0, 8046)
 		min := 143
 		for {
 			m := multiples(<-primes)
 			head := <-m
 			for min < head {
 				composites <- min
-				minchan := heap.Pop(h).(*PeekCh)
+				minchan := heap.Pop(&h).(*PeekCh)
 				min = minchan.head
 				minchan.head = <-minchan.ch
-				heap.Push(h, minchan)
+				heap.Push(&h, minchan)
 			}
 			for min == head {
-				minchan := heap.Pop(h).(*PeekCh)
+				minchan := heap.Pop(&h).(*PeekCh)
 				min = minchan.head
 				minchan.head = <-minchan.ch
-				heap.Push(h, minchan)
+				heap.Push(&h, minchan)
 			}
 			composites <- head
-			heap.Push(h, &PeekCh{<-m, m})
+			heap.Push(&h, &PeekCh{<-m, m})
 		}
 	}()
 
