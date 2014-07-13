@@ -24,6 +24,7 @@ import (
 var nth = flag.Bool("n", false, "print the nth prime only")
 var nCPU = flag.Int("ncpu", 1, "number of CPUs to use")
 
+
 // Wheel to quickly generate numbers coprime to 2, 3, 5 and 7.
 // Starting from 13, we successively add wheel[i] to get 17, 19, 23, ...
 var wheel = []int{
@@ -35,6 +36,9 @@ var wheel = []int{
 func spin(n, k, i, bufsize int) chan int {
 	out := make(chan int, bufsize)
 	go func() {
+		defer func() {
+			recover()
+		} ()
 		for {
 			for ; i < 48; i++ {
 				out <- n
@@ -71,6 +75,13 @@ type PeekCh struct {
 	head int
 	ch   chan int
 }
+func (pc *PeekCh) Close() {
+	defer func() {
+		recover()
+	} ()
+	close(pc.ch)
+	for ok := true; ok; _,ok = <-pc.ch {}
+}
 
 // Heap of PeekCh, sorting by head values.
 type PeekChHeap []*PeekCh
@@ -96,6 +107,12 @@ func (h *PeekChHeap) Push(v interface{}) {
 	*h = append(*h, v.(*PeekCh))
 }
 
+func (h *PeekChHeap) Close() {
+	for (*h).Len() != 0 {
+		(*h).Pop().(*PeekCh).Close()
+	}
+}
+
 // Return a channel which serves as a sending proxy to `out`.
 // Use a goroutine to receive values from `out` and store them
 // in an expanding buffer, so that sending to `out` never blocks.
@@ -109,6 +126,10 @@ func sendproxy(out chan<- int) chan<- int {
 		last := first
 		var c chan<- int
 		var e int
+		defer func() {
+			close(out)
+			recover()
+		} ()
 		for {
 			c = out
 			if first == last {
@@ -118,7 +139,10 @@ func sendproxy(out chan<- int) chan<- int {
 				e = first.Value.(int)
 			}
 			select {
-			case e = <-proxy:
+			case e,ok := <-proxy:
+				if !ok {
+					return
+				}
 				last.Value = e
 				if last.Next() == first {
 					// buffer full: expand it
@@ -152,28 +176,54 @@ func Sieve() chan int {
 	primes := make(chan int, 1024)
 	primes <- 11
 
+	defer func() {
+		recover()
+	} ()
+
 	// Merge channels of multiples of `primes` into `composites`.
 	go func() {
+		//var m chan int
 		h := make(PeekChHeap, 0, 8046)
+		var m chan int
 		min := 143
+		defer func() {
+			close(m)
+			h.Close()
+			h = nil
+			recover()
+		} ()
+		p,ok := <-primes
+		if !ok {
+			return
+		}
 		for {
-			m := multiples(<-primes)
+			m = multiples(p)
 			head := <-m
 			for min < head {
 				composites <- min
 				minchan := heap.Pop(&h).(*PeekCh)
 				min = minchan.head
-				minchan.head = <-minchan.ch
+				minchan.head,ok = <-minchan.ch
+				if !ok {
+					return
+				}
 				heap.Push(&h, minchan)
 			}
 			for min == head {
 				minchan := heap.Pop(&h).(*PeekCh)
 				min = minchan.head
-				minchan.head = <-minchan.ch
+				minchan.head,ok = <-minchan.ch
+				if !ok {
+					return
+				}
 				heap.Push(&h, minchan)
 			}
 			composites <- head
 			heap.Push(&h, &PeekCh{<-m, m})
+			p,ok = <-primes
+			if !ok {
+				return
+			}
 		}
 	}()
 
@@ -190,6 +240,14 @@ func Sieve() chan int {
 		candidates := coprime2357()
 		p := <-candidates
 
+		defer func() {
+			close(primes)
+			close(candidates)
+			for ok := true ; ok; _,ok = <-candidates {}
+			close(composites)	//Cascades to go func above
+			for ok := true ; ok; _,ok = <-composites {}
+			recover()
+		} ()
 		for {
 			c := <-composites
 			for p < c {
